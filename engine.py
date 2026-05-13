@@ -15,6 +15,7 @@ import shutil
 import xml.etree.ElementTree as ET
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from pathlib import Path
 from typing import Callable
@@ -891,6 +892,25 @@ def write_audit(invoices: list[Invoice], items: list[Item], total: Decimal, outp
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _safe_output_name(text: str) -> str:
+    cleaned = re.sub(r"[\\/:*?\"<>|]+", "_", text).strip()
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    return cleaned or "run"
+
+
+def make_run_output_dir(base_output_dir: Path, invoice_dir: Path, from_xlsx: Path | None) -> Path:
+    source_name = from_xlsx.stem if from_xlsx else invoice_dir.name
+    prefix = _safe_output_name(source_name)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    candidate = base_output_dir / f"{prefix}-{timestamp}"
+    counter = 2
+    while candidate.exists():
+        candidate = base_output_dir / f"{prefix}-{timestamp}-{counter}"
+        counter += 1
+    candidate.mkdir(parents=True, exist_ok=False)
+    return candidate
+
+
 @dataclass
 class RunConfig:
     invoice_dir: Path
@@ -924,6 +944,7 @@ class RunResult:
 
 def run_pipeline(config: RunConfig, progress: ProgressCallback | None = None) -> RunResult:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    run_output_dir = make_run_output_dir(config.output_dir, config.invoice_dir, config.from_xlsx)
 
     if progress:
         progress("读取发票数据…", 0.05)
@@ -944,8 +965,8 @@ def run_pipeline(config: RunConfig, progress: ProgressCallback | None = None) ->
     if progress:
         progress("导出审计文件…", 0.75)
 
-    write_audit(invoices, items, total, config.output_dir, issues, config.storage_location)
-    workbook_path = write_intermediate_xlsx(invoices, config.output_dir, issues, config.storage_location)
+    write_audit(invoices, items, total, run_output_dir, issues, config.storage_location)
+    workbook_path = write_intermediate_xlsx(invoices, run_output_dir, issues, config.storage_location)
 
     has_blocking = any(issue.level == "error" for issue in issues)
 
@@ -964,8 +985,8 @@ def run_pipeline(config: RunConfig, progress: ProgressCallback | None = None) ->
     if progress:
         progress("生成 Word 文档…", 0.85)
 
-    reimburse_out = config.output_dir / config.reimburse_name
-    acceptance_out = config.output_dir / config.acceptance_name
+    reimburse_out = run_output_dir / config.reimburse_name
+    acceptance_out = run_output_dir / config.acceptance_name
     update_reimburse_doc(invoices, total, reimburse_out, config.reimburse_template, config.document_date)
     update_acceptance_doc(items, acceptance_out, config.acceptance_template, config.document_date, config.storage_location)
 
