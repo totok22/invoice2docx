@@ -35,7 +35,7 @@ from openpyxl.utils import get_column_letter
 from pypdf import PdfReader
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 DEFAULT_INVOICE_DIR = ROOT / "发票"
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 DEFAULT_REIMBURSE_TEMPLATE = ROOT / "默认报账说明模板.docx"

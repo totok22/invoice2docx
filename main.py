@@ -25,7 +25,6 @@ ERROR_COLOR = ft.Colors.RED_700
 WARNING_COLOR = ft.Colors.ORANGE_700
 SURFACE = ft.Colors.WHITE
 APP_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = APP_DIR.parent
 APP_VERSION = "V0.0"
 APP_BUILD_DATE = "2026-05-13"
 APP_AUTHOR = "totok22"
@@ -49,8 +48,28 @@ def _settings_path() -> Path:
     return base / "InvoiceWordBuilder" / "settings.json"
 
 
-def _project_template_path(filename: str) -> str:
-    return str(PROJECT_ROOT / filename)
+def _resource_path(filename: str) -> str:
+    candidates = [
+        APP_DIR / filename,
+        Path(getattr(sys, "_MEIPASS", APP_DIR)) / filename,
+        Path(sys.executable).resolve().parent / filename,
+    ]
+    for path in candidates:
+        if path.exists():
+            return str(path)
+    return str(candidates[0])
+
+
+def _default_output_dir() -> str:
+    return str(Path.home() / "Documents" / "InvoiceWordBuilder" / "output")
+
+
+def _default_reimburse_template_path() -> str:
+    return _resource_path(DEFAULT_REIMBURSE_TEMPLATE_FILE)
+
+
+def _default_acceptance_template_path() -> str:
+    return _resource_path(DEFAULT_ACCEPTANCE_TEMPLATE_FILE)
 
 
 def _normalize_template_path(raw: str) -> str:
@@ -59,15 +78,15 @@ def _normalize_template_path(raw: str) -> str:
         return text
     path = Path(text)
     if path.name == LEGACY_REIMBURSE_TEMPLATE_FILE:
-        preferred = PROJECT_ROOT / DEFAULT_REIMBURSE_TEMPLATE_FILE
-        legacy = PROJECT_ROOT / LEGACY_REIMBURSE_TEMPLATE_FILE
+        preferred = Path(_resource_path(DEFAULT_REIMBURSE_TEMPLATE_FILE))
+        legacy = Path(_resource_path(LEGACY_REIMBURSE_TEMPLATE_FILE))
         if preferred.exists():
             return str(preferred)
         if legacy.exists():
             return str(legacy)
     if path.name == LEGACY_ACCEPTANCE_TEMPLATE_FILE:
-        preferred = PROJECT_ROOT / DEFAULT_ACCEPTANCE_TEMPLATE_FILE
-        legacy = PROJECT_ROOT / LEGACY_ACCEPTANCE_TEMPLATE_FILE
+        preferred = Path(_resource_path(DEFAULT_ACCEPTANCE_TEMPLATE_FILE))
+        legacy = Path(_resource_path(LEGACY_ACCEPTANCE_TEMPLATE_FILE))
         if preferred.exists():
             return str(preferred)
         if legacy.exists():
@@ -79,8 +98,8 @@ def _default_template_schemes() -> list[dict[str, str]]:
     return [
         {
             "name": "默认模板",
-            "reimburse_template": _project_template_path(DEFAULT_REIMBURSE_TEMPLATE_FILE),
-            "acceptance_template": _project_template_path(DEFAULT_ACCEPTANCE_TEMPLATE_FILE),
+            "reimburse_template": _default_reimburse_template_path(),
+            "acceptance_template": _default_acceptance_template_path(),
             "reimburse_name": DEFAULT_REIMBURSE_OUTPUT_NAME,
             "acceptance_name": DEFAULT_ACCEPTANCE_OUTPUT_NAME,
         }
@@ -103,10 +122,10 @@ def _default_person_profiles() -> list[dict[str, str]]:
 
 def _default_settings() -> dict[str, Any]:
     return {
-        "invoice_dir": str(PROJECT_ROOT / "发票"),
-        "reimburse_template": _project_template_path(DEFAULT_REIMBURSE_TEMPLATE_FILE),
-        "acceptance_template": _project_template_path(DEFAULT_ACCEPTANCE_TEMPLATE_FILE),
-        "output_dir": str(APP_DIR / "output"),
+        "invoice_dir": "",
+        "reimburse_template": _default_reimburse_template_path(),
+        "acceptance_template": _default_acceptance_template_path(),
+        "output_dir": _default_output_dir(),
         "storage_location": "工训楼",
         "expected_buyer_name": "北京理工大学教育基金会",
         "reimburse_name": DEFAULT_REIMBURSE_OUTPUT_NAME,
@@ -415,8 +434,8 @@ class InvoiceApp:
             schemes.append(
                 {
                     "name": name,
-                    "reimburse_template": _normalize_template_path(item.get("reimburse_template", "")),
-                    "acceptance_template": _normalize_template_path(item.get("acceptance_template", "")),
+                    "reimburse_template": _normalize_template_path(item.get("reimburse_template", "")) or _default_reimburse_template_path(),
+                    "acceptance_template": _normalize_template_path(item.get("acceptance_template", "")) or _default_acceptance_template_path(),
                     "reimburse_name": str(item.get("reimburse_name", DEFAULT_REIMBURSE_OUTPUT_NAME)).strip() or DEFAULT_REIMBURSE_OUTPUT_NAME,
                     "acceptance_name": str(item.get("acceptance_name", DEFAULT_ACCEPTANCE_OUTPUT_NAME)).strip() or DEFAULT_ACCEPTANCE_OUTPUT_NAME,
                 }
@@ -541,8 +560,8 @@ class InvoiceApp:
                     settings.update(loaded)
         except Exception:
             pass
-        settings["reimburse_template"] = _normalize_template_path(settings.get("reimburse_template", ""))
-        settings["acceptance_template"] = _normalize_template_path(settings.get("acceptance_template", ""))
+        settings["reimburse_template"] = _normalize_template_path(settings.get("reimburse_template", "")) or _default_reimburse_template_path()
+        settings["acceptance_template"] = _normalize_template_path(settings.get("acceptance_template", "")) or _default_acceptance_template_path()
         if str(settings.get("reimburse_name", "")).strip() == "第四组报账说明.docx":
             settings["reimburse_name"] = DEFAULT_REIMBURSE_OUTPUT_NAME
         if str(settings.get("acceptance_name", "")).strip() == "第四组验收单.docx":
@@ -605,7 +624,7 @@ class InvoiceApp:
         settings = _default_settings()
         self._apply_defaults(settings)
         self._save_settings(self._current_settings())
-        self._show_banner("已恢复默认模板、默认档案和基础参数", "success")
+        self._show_banner("已恢复默认设置和内置模板", "success")
         self.page.pop_dialog()
         self.page.update()
 
@@ -1081,6 +1100,32 @@ class InvoiceApp:
         self.page.update()
 
     def _save_defaults_from_dialog(self, e):
+        template_name = self.settings_template_name.value.strip() or self.settings_template_select.value or self.selected_template_scheme
+        if not template_name:
+            self._show_banner("模板方案名称不能为空", "error")
+            return
+        template_scheme = {
+            "name": template_name,
+            "reimburse_template": self.settings_reimburse_tpl_field.value or "",
+            "acceptance_template": self.settings_acceptance_tpl_field.value or "",
+            "reimburse_name": self.settings_reimburse_name_field.value or DEFAULT_REIMBURSE_OUTPUT_NAME,
+            "acceptance_name": self.settings_acceptance_name_field.value or DEFAULT_ACCEPTANCE_OUTPUT_NAME,
+        }
+        self._upsert_template_scheme(template_scheme)
+        self.selected_template_scheme = template_name
+        self._refresh_template_scheme_dropdown()
+        self._apply_template_scheme(template_name, persist=False, update_page=False)
+
+        profile_name = self.settings_profile_name.value.strip() or self.settings_profile_select.value or self.selected_person_profile
+        if not profile_name:
+            self._show_banner("资料档案名称不能为空", "error")
+            return
+        profile = self._profile_from_editor(profile_name)
+        self._upsert_person_profile(profile)
+        self.selected_person_profile = profile_name
+        self._refresh_person_profile_dropdown()
+        self._apply_person_profile(profile_name, persist=False, update_page=False)
+
         self._save_settings(self._current_settings())
         self.page.pop_dialog()
         self._show_banner(f"已保存：{self.settings_file}", "success")
