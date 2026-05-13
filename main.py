@@ -25,9 +25,10 @@ ERROR_COLOR = ft.Colors.RED_700
 WARNING_COLOR = ft.Colors.ORANGE_700
 SURFACE = ft.Colors.WHITE
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "V0.0"
-APP_BUILD_DATE = "2026-05-13"
-APP_AUTHOR = "totok22"
+APP_VERSION = "V0.1"
+APP_BUILD_DATE = "2026-5-13"
+APP_AUTHOR = "BITFSAE出品"
+APP_REPOSITORY = "https://github.com/totok22/invoice2docx"
 DEFAULT_REIMBURSE_TEMPLATE_FILE = "默认报账说明模板.docx"
 DEFAULT_ACCEPTANCE_TEMPLATE_FILE = "默认验收单模板.docx"
 LEGACY_REIMBURSE_TEMPLATE_FILE = "第三组报账说明.docx"
@@ -390,7 +391,7 @@ class InvoiceApp:
                     ft.Icon(ft.Icons.RECEIPT_LONG, color=ft.Colors.WHITE, size=28),
                     ft.Text("发票 Word 生成器", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
                     ft.Container(expand=True),
-                    ft.Text(f"{APP_AUTHOR}  {APP_VERSION}", color=ft.Colors.WHITE70, size=12),
+                    ft.Text(APP_AUTHOR, color=ft.Colors.WHITE70, size=12),
                     self.guide_button,
                     self.settings_button,
                 ],
@@ -874,7 +875,7 @@ class InvoiceApp:
         self.page.show_dialog(dialog)
 
     def _open_guide(self, e):
-        ocr_lines = [
+        usage_lines = [
             "复杂的、条目多的发票，最好附上 XML 文件，命名为：序号.xml。",
             "发票文件夹里可以放付款截图、查验单等材料，这些不会写进导出的 Word。",
             "发票 PDF 推荐命名：序号+品类+金额+发票.pdf，方便人工核对。",
@@ -884,39 +885,53 @@ class InvoiceApp:
             "模板不是任意 Word，必须符合本项目当前表格结构。",
         ]
         if self._ocr_ready():
-            ocr_status = "已检测到 OCR 环境变量，可直接使用 auto / always。"
+            ocr_status = "已检测到 OCR 环境变量，可直接使用“自动补救”或“强制 OCR”。"
         else:
-            ocr_status = "未检测到 OCR 环境变量。需要时可联系软件作者，或自行去阿里云申请。"
+            ocr_status = "未检测到 OCR 环境变量。需要 OCR 时可联系维护者，或按 README 自行申请阿里云密钥。"
+        guide_content = ft.Column(
+            [
+                self._settings_block(
+                    "日常使用",
+                    ft.Column(
+                        [ft.Text(line, size=12, color=ft.Colors.GREY_800) for line in usage_lines],
+                        spacing=6,
+                    ),
+                ),
+                self._settings_block(
+                    "OCR 说明",
+                    ft.Column(
+                        [
+                            ft.Text(ocr_status, size=12, color=ft.Colors.GREY_800),
+                            ft.Text("下拉框里的“关闭”：不调用 OCR，只使用 XML 和 PDF 文本解析。普通情况选这个。", size=12, color=ft.Colors.GREY_800),
+                            ft.Text("下拉框里的“自动补救”：只有解析失败或金额不闭合时，才尝试 OCR。", size=12, color=ft.Colors.GREY_800),
+                            ft.Text("下拉框里的“强制 OCR”：没有匹配 XML 的 PDF 都会调用 OCR。", size=12, color=ft.Colors.GREY_800),
+                            ft.Text("使用 OCR 前，需要配置系统环境变量：ALIBABA_CLOUD_ACCESS_KEY_ID 和 ALIBABA_CLOUD_ACCESS_KEY_SECRET。", size=12, color=ft.Colors.GREY_800),
+                        ],
+                        spacing=6,
+                    ),
+                ),
+                self._settings_block(
+                    "软件信息",
+                    ft.Column(
+                        [
+                            ft.Text(f"{APP_AUTHOR}", size=12, color=ft.Colors.GREY_800),
+                            ft.Text(f"版本：{APP_VERSION}", size=12, color=ft.Colors.GREY_800),
+                            ft.Text(f"日期：{APP_BUILD_DATE}", size=12, color=ft.Colors.GREY_800),
+                            ft.Text(f"GitHub 仓库：{APP_REPOSITORY}", size=12, color=ft.Colors.GREY_800),
+                        ],
+                        spacing=6,
+                    ),
+                ),
+            ],
+            spacing=12,
+            scroll=ft.ScrollMode.AUTO,
+        )
         dialog = ft.AlertDialog(
             modal=False,
             title=ft.Text("说明", weight=ft.FontWeight.W_600),
             content=ft.Container(
                 width=760,
-                content=ft.Column(
-                    [
-                        self._settings_block(
-                            "日常使用",
-                            ft.Column(
-                                [ft.Text(line, size=12, color=ft.Colors.GREY_800) for line in ocr_lines],
-                                spacing=6,
-                            ),
-                        ),
-                        self._settings_block(
-                            "OCR 说明",
-                            ft.Column(
-                                [
-                                    ft.Text(ocr_status, size=12, color=ft.Colors.GREY_800),
-                                    ft.Text("如果需要阿里云文字识别 OCR 密钥，可以联系软件作者，或者自己去阿里云申请。", size=12, color=ft.Colors.GREY_800),
-                                    ft.Text("系统环境变量需要配置：ALIBABA_CLOUD_ACCESS_KEY_ID 和 ALIBABA_CLOUD_ACCESS_KEY_SECRET。", size=12, color=ft.Colors.GREY_800),
-                                    ft.Text("off：不用 OCR。auto：解析失败或金额不闭合时补救。always：没有 XML 匹配的 PDF 都走 OCR。", size=12, color=ft.Colors.GREY_800),
-                                ],
-                                spacing=6,
-                            ),
-                        ),
-                    ],
-                    spacing=12,
-                    scroll=ft.ScrollMode.AUTO,
-                ),
+                content=ft.SelectionArea(content=guide_content),
             ),
             actions=[ft.TextButton(content="关闭", on_click=lambda _: self.page.pop_dialog())],
         )
