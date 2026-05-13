@@ -181,6 +181,37 @@ python -m venv .venv
 .venv\Scripts\python main.py
 ```
 
+## 打包发布
+
+本项目使用 `flet pack` 打包。打包产物会输出到 `dist/`，中间文件会输出到 `build/`。
+
+macOS 打包：
+
+```bash
+chmod +x build_mac.sh
+./build_mac.sh
+```
+
+脚本会优先使用当前目录下的 `.venv/bin/python`；如果没有虚拟环境，则使用系统 `python3`。打包完成后，macOS 应用会在 `dist/` 目录下。
+
+当前脚本生成的是 macOS arm64 版本，适合 Apple Silicon Mac。应用使用 adhoc 签名，给其他机器使用时，macOS 可能提示“无法验证开发者”。内部测试可以在“系统设置 - 隐私与安全性”里允许打开；正式分发需要 Apple Developer 证书签名和公证。
+
+Windows 打包：
+
+```powershell
+build_win.bat
+```
+
+脚本会优先使用当前目录下的 `.venv\Scripts\python.exe`；如果没有虚拟环境，则使用系统 `python`。打包完成后，Windows 程序会在 `dist\` 目录下。
+
+跨平台打包限制：
+
+- macOS 上通常不能直接打包 Windows 可执行文件。Flet/PyInstaller 这类桌面应用打包通常要在目标系统上执行，也就是 macOS 打 macOS，Windows 打 Windows。
+- Windows 11 上打出来的 Windows 版本，一般可以在 Windows 10 上运行，前提是 Python 依赖、系统架构和打包工具生成的运行库兼容目标机器。建议最终发布前至少在一台 Windows 10 机器上试运行一次。
+- Apple Silicon 和 Intel Mac 最好分别测试。如果要覆盖 Intel Mac，建议在 Intel Mac 或对应构建环境里打包。
+
+如果打包时报 `flet-cli`、`pyinstaller` 或依赖下载失败，先确认网络可访问 PyPI，然后重新运行打包脚本。
+
 ## 命令行生成
 
 图形界面是主要入口。需要脚本化时，也可以使用 CLI：
