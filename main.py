@@ -9,7 +9,6 @@ import json
 import os
 import subprocess
 import sys
-import threading
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -61,6 +60,14 @@ def _resource_path(filename: str) -> str:
     return str(candidates[0])
 
 
+def _ui_font_family() -> str:
+    if sys.platform == "win32":
+        return "Microsoft YaHei UI"
+    if sys.platform == "darwin":
+        return "PingFang SC"
+    return "Noto Sans CJK SC"
+
+
 def _default_output_dir() -> str:
     return str(Path.home() / "Documents" / "InvoiceWordBuilder" / "output")
 
@@ -92,6 +99,10 @@ def _normalize_template_path(raw: str) -> str:
             return str(preferred)
         if legacy.exists():
             return str(legacy)
+    if not path.exists():
+        resolved = Path(_resource_path(path.name))
+        if resolved.exists():
+            return str(resolved)
     return text
 
 
@@ -152,7 +163,7 @@ class InvoiceApp:
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.theme = ft.Theme(
             color_scheme_seed=ft.Colors.BLUE,
-            font_family="Microsoft YaHei, PingFang SC, sans-serif",
+            font_family=_ui_font_family(),
         )
         self.page.padding = 0
 
@@ -751,7 +762,7 @@ class InvoiceApp:
                 self.progress_bar.visible = False
                 self.page.update()
 
-        threading.Thread(target=worker, daemon=True).start()
+        self.page.run_thread(worker)
 
     def _ocr_ready(self) -> bool:
         return bool(os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_ID") and os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_SECRET"))
@@ -1319,12 +1330,21 @@ class InvoiceApp:
         )
 
     def _open_file(self, path: Path):
-        if sys.platform == "darwin":
-            subprocess.Popen(["open", str(path)])
-        elif sys.platform == "win32":
-            subprocess.Popen(["start", "", str(path)], shell=True)
-        else:
-            subprocess.Popen(["xdg-open", str(path)])
+        def opener():
+            try:
+                if not path.exists():
+                    self._show_banner(f"文件或目录不存在：{path}", "error")
+                    return
+                if sys.platform == "darwin":
+                    subprocess.Popen(["open", str(path)])
+                elif sys.platform == "win32":
+                    os.startfile(str(path))  # type: ignore[attr-defined]
+                else:
+                    subprocess.Popen(["xdg-open", str(path)])
+            except Exception as exc:
+                self._show_banner(f"打开失败：{exc}", "error")
+
+        self.page.run_thread(opener)
 
 
 def main(page: ft.Page):
