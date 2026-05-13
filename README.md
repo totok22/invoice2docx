@@ -55,6 +55,8 @@ BITFSAE 车队运营组内部使用。
 
 只有在 `auto` 或 `always` 模式下才会调用阿里云 OCR。
 
+如果需要阿里云文字识别 OCR 密钥，可以联系软件作者，或者自己去阿里云申请。
+
 先配置环境变量：
 
 ```bash
@@ -80,8 +82,8 @@ CLI 也能直接用：
 ```bash
 python3 generate_invoice_docs.py \
   --invoice-dir ../发票 \
-  --reimburse-template ../第三组报账说明.docx \
-  --acceptance-template ../第三组验收单.docx \
+  --reimburse-template ../默认报账说明模板.docx \
+  --acceptance-template ../默认验收单模板.docx \
   --output-dir output
 ```
 

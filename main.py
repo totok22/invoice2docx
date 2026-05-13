@@ -29,6 +29,12 @@ PROJECT_ROOT = APP_DIR.parent
 APP_VERSION = "V0.0"
 APP_BUILD_DATE = "2026-05-13"
 APP_AUTHOR = "totok22"
+DEFAULT_REIMBURSE_TEMPLATE_FILE = "默认报账说明模板.docx"
+DEFAULT_ACCEPTANCE_TEMPLATE_FILE = "默认验收单模板.docx"
+LEGACY_REIMBURSE_TEMPLATE_FILE = "第三组报账说明.docx"
+LEGACY_ACCEPTANCE_TEMPLATE_FILE = "第三组验收单.docx"
+DEFAULT_REIMBURSE_OUTPUT_NAME = "报账说明.docx"
+DEFAULT_ACCEPTANCE_OUTPUT_NAME = "验收单.docx"
 
 
 def _settings_path() -> Path:
@@ -43,14 +49,40 @@ def _settings_path() -> Path:
     return base / "InvoiceWordBuilder" / "settings.json"
 
 
+def _project_template_path(filename: str) -> str:
+    return str(PROJECT_ROOT / filename)
+
+
+def _normalize_template_path(raw: str) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return text
+    path = Path(text)
+    if path.name == LEGACY_REIMBURSE_TEMPLATE_FILE:
+        preferred = PROJECT_ROOT / DEFAULT_REIMBURSE_TEMPLATE_FILE
+        legacy = PROJECT_ROOT / LEGACY_REIMBURSE_TEMPLATE_FILE
+        if preferred.exists():
+            return str(preferred)
+        if legacy.exists():
+            return str(legacy)
+    if path.name == LEGACY_ACCEPTANCE_TEMPLATE_FILE:
+        preferred = PROJECT_ROOT / DEFAULT_ACCEPTANCE_TEMPLATE_FILE
+        legacy = PROJECT_ROOT / LEGACY_ACCEPTANCE_TEMPLATE_FILE
+        if preferred.exists():
+            return str(preferred)
+        if legacy.exists():
+            return str(legacy)
+    return text
+
+
 def _default_template_schemes() -> list[dict[str, str]]:
     return [
         {
             "name": "默认模板",
-            "reimburse_template": str(PROJECT_ROOT / "第三组报账说明.docx"),
-            "acceptance_template": str(PROJECT_ROOT / "第三组验收单.docx"),
-            "reimburse_name": "第四组报账说明.docx",
-            "acceptance_name": "第四组验收单.docx",
+            "reimburse_template": _project_template_path(DEFAULT_REIMBURSE_TEMPLATE_FILE),
+            "acceptance_template": _project_template_path(DEFAULT_ACCEPTANCE_TEMPLATE_FILE),
+            "reimburse_name": DEFAULT_REIMBURSE_OUTPUT_NAME,
+            "acceptance_name": DEFAULT_ACCEPTANCE_OUTPUT_NAME,
         }
     ]
 
@@ -72,13 +104,13 @@ def _default_person_profiles() -> list[dict[str, str]]:
 def _default_settings() -> dict[str, Any]:
     return {
         "invoice_dir": str(PROJECT_ROOT / "发票"),
-        "reimburse_template": str(PROJECT_ROOT / "第三组报账说明.docx"),
-        "acceptance_template": str(PROJECT_ROOT / "第三组验收单.docx"),
+        "reimburse_template": _project_template_path(DEFAULT_REIMBURSE_TEMPLATE_FILE),
+        "acceptance_template": _project_template_path(DEFAULT_ACCEPTANCE_TEMPLATE_FILE),
         "output_dir": str(APP_DIR / "output"),
         "storage_location": "工训楼",
         "expected_buyer_name": "北京理工大学教育基金会",
-        "reimburse_name": "第四组报账说明.docx",
-        "acceptance_name": "第四组验收单.docx",
+        "reimburse_name": DEFAULT_REIMBURSE_OUTPUT_NAME,
+        "acceptance_name": DEFAULT_ACCEPTANCE_OUTPUT_NAME,
         "ocr_mode": "off",
         "allow_risky_generate": False,
         "autosave": True,
@@ -202,13 +234,13 @@ class InvoiceApp:
         )
         self.reimburse_name_field = ft.TextField(
             label="报账说明文件名",
-            value=str(self.settings.get("reimburse_name", "第四组报账说明.docx")),
+            value=str(self.settings.get("reimburse_name", DEFAULT_REIMBURSE_OUTPUT_NAME)),
             border_radius=8,
             width=220,
         )
         self.acceptance_name_field = ft.TextField(
             label="验收单文件名",
-            value=str(self.settings.get("acceptance_name", "第四组验收单.docx")),
+            value=str(self.settings.get("acceptance_name", DEFAULT_ACCEPTANCE_OUTPUT_NAME)),
             border_radius=8,
             width=220,
         )
@@ -254,6 +286,12 @@ class InvoiceApp:
             tooltip="设置",
             icon_color=ft.Colors.WHITE,
             on_click=self._open_settings,
+        )
+        self.guide_button = ft.IconButton(
+            ft.Icons.HELP_OUTLINE,
+            tooltip="说明",
+            icon_color=ft.Colors.WHITE,
+            on_click=self._open_guide,
         )
 
         self._refresh_template_scheme_dropdown()
@@ -334,6 +372,7 @@ class InvoiceApp:
                     ft.Text("发票 Word 生成器", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
                     ft.Container(expand=True),
                     ft.Text(f"{APP_AUTHOR}  {APP_VERSION}", color=ft.Colors.WHITE70, size=12),
+                    self.guide_button,
                     self.settings_button,
                 ],
                 spacing=12,
@@ -376,10 +415,10 @@ class InvoiceApp:
             schemes.append(
                 {
                     "name": name,
-                    "reimburse_template": str(item.get("reimburse_template", "")).strip(),
-                    "acceptance_template": str(item.get("acceptance_template", "")).strip(),
-                    "reimburse_name": str(item.get("reimburse_name", "第四组报账说明.docx")).strip() or "第四组报账说明.docx",
-                    "acceptance_name": str(item.get("acceptance_name", "第四组验收单.docx")).strip() or "第四组验收单.docx",
+                    "reimburse_template": _normalize_template_path(item.get("reimburse_template", "")),
+                    "acceptance_template": _normalize_template_path(item.get("acceptance_template", "")),
+                    "reimburse_name": str(item.get("reimburse_name", DEFAULT_REIMBURSE_OUTPUT_NAME)).strip() or DEFAULT_REIMBURSE_OUTPUT_NAME,
+                    "acceptance_name": str(item.get("acceptance_name", DEFAULT_ACCEPTANCE_OUTPUT_NAME)).strip() or DEFAULT_ACCEPTANCE_OUTPUT_NAME,
                 }
             )
         return schemes or _default_template_schemes()
@@ -449,8 +488,8 @@ class InvoiceApp:
         self.selected_template_scheme = scheme["name"]
         self.reimburse_tpl_field.value = scheme.get("reimburse_template", "")
         self.acceptance_tpl_field.value = scheme.get("acceptance_template", "")
-        self.reimburse_name_field.value = scheme.get("reimburse_name", "第四组报账说明.docx") or "第四组报账说明.docx"
-        self.acceptance_name_field.value = scheme.get("acceptance_name", "第四组验收单.docx") or "第四组验收单.docx"
+        self.reimburse_name_field.value = scheme.get("reimburse_name", DEFAULT_REIMBURSE_OUTPUT_NAME) or DEFAULT_REIMBURSE_OUTPUT_NAME
+        self.acceptance_name_field.value = scheme.get("acceptance_name", DEFAULT_ACCEPTANCE_OUTPUT_NAME) or DEFAULT_ACCEPTANCE_OUTPUT_NAME
         self.template_scheme_dropdown.value = self.selected_template_scheme
         self._refresh_template_hint()
         if persist:
@@ -476,8 +515,8 @@ class InvoiceApp:
             return
         scheme["reimburse_template"] = self.reimburse_tpl_field.value or ""
         scheme["acceptance_template"] = self.acceptance_tpl_field.value or ""
-        scheme["reimburse_name"] = self.reimburse_name_field.value or "第四组报账说明.docx"
-        scheme["acceptance_name"] = self.acceptance_name_field.value or "第四组验收单.docx"
+        scheme["reimburse_name"] = self.reimburse_name_field.value or DEFAULT_REIMBURSE_OUTPUT_NAME
+        scheme["acceptance_name"] = self.acceptance_name_field.value or DEFAULT_ACCEPTANCE_OUTPUT_NAME
 
     def _upsert_template_scheme(self, scheme: dict[str, str]):
         for idx, row in enumerate(self.template_schemes):
@@ -502,6 +541,12 @@ class InvoiceApp:
                     settings.update(loaded)
         except Exception:
             pass
+        settings["reimburse_template"] = _normalize_template_path(settings.get("reimburse_template", ""))
+        settings["acceptance_template"] = _normalize_template_path(settings.get("acceptance_template", ""))
+        if str(settings.get("reimburse_name", "")).strip() == "第四组报账说明.docx":
+            settings["reimburse_name"] = DEFAULT_REIMBURSE_OUTPUT_NAME
+        if str(settings.get("acceptance_name", "")).strip() == "第四组验收单.docx":
+            settings["acceptance_name"] = DEFAULT_ACCEPTANCE_OUTPUT_NAME
         return settings
 
     def _current_settings(self) -> dict[str, Any]:
@@ -513,8 +558,8 @@ class InvoiceApp:
             "output_dir": self.output_dir_field.value or "",
             "storage_location": self.storage_field.value or "工训楼",
             "expected_buyer_name": self.buyer_name_field.value or "",
-            "reimburse_name": self.reimburse_name_field.value or "第四组报账说明.docx",
-            "acceptance_name": self.acceptance_name_field.value or "第四组验收单.docx",
+            "reimburse_name": self.reimburse_name_field.value or DEFAULT_REIMBURSE_OUTPUT_NAME,
+            "acceptance_name": self.acceptance_name_field.value or DEFAULT_ACCEPTANCE_OUTPUT_NAME,
             "ocr_mode": self.ocr_mode_dropdown.value or "off",
             "allow_risky_generate": bool(self.risky_checkbox.value),
             "autosave": bool(self.autosave_checkbox.value),
@@ -779,15 +824,10 @@ class InvoiceApp:
                             ),
                         ),
                         self._settings_block(
-                            "说明",
+                            "当前环境",
                             ft.Column(
                                 [
-                                    ft.Text("复杂的条目多的发票最好附上 XML 文件，命名：序号.xml", size=12, color=ft.Colors.GREY_800),
-                                    ft.Text("校验失败后修正程序输出的中间表，然后再选择从中间表生成", size=12, color=ft.Colors.GREY_800),
-                                    ft.Text("同一批发票必须是同一购买方抬头", size=12, color=ft.Colors.GREY_800),
-                                    ft.Text("模板不是任意 Word，必须符合本项目当前表格结构", size=12, color=ft.Colors.GREY_800),
                                     ft.Text(f"OCR：{ocr_status}", size=12, color=ft.Colors.GREY_800),
-                                    ft.Text("输出目录下每次运行都会新建一个唯一子文件夹，不会直接覆盖上一次结果", size=12, color=ft.Colors.GREY_800),
                                     ft.Text(f"设置文件：{self.settings_file}", size=12, color=ft.Colors.GREY_800, selectable=True),
                                 ],
                                 spacing=6,
@@ -803,6 +843,55 @@ class InvoiceApp:
                 ft.TextButton(content="保存全部设置", icon=ft.Icons.SAVE_OUTLINED, on_click=self._save_defaults_from_dialog),
                 ft.TextButton(content="关闭", on_click=lambda _: self.page.pop_dialog()),
             ],
+        )
+        self.page.show_dialog(dialog)
+
+    def _open_guide(self, e):
+        ocr_lines = [
+            "复杂的、条目多的发票，最好附上 XML 文件，命名为：序号.xml。",
+            "发票文件夹里可以放付款截图、查验单等材料，这些不会写进导出的 Word。",
+            "发票 PDF 推荐命名：序号+品类+金额+发票.pdf，方便人工核对。",
+            "校验失败后，先修正程序输出的中间表，再选择“从中间表生成”。",
+            "同一批发票必须属于同一购买方抬头。",
+            "输出目录下每次运行都会新建唯一子文件夹，不会直接覆盖上一次结果。",
+            "模板不是任意 Word，必须符合本项目当前表格结构。",
+        ]
+        if self._ocr_ready():
+            ocr_status = "已检测到 OCR 环境变量，可直接使用 auto / always。"
+        else:
+            ocr_status = "未检测到 OCR 环境变量。需要时可联系软件作者，或自行去阿里云申请。"
+        dialog = ft.AlertDialog(
+            modal=False,
+            title=ft.Text("说明", weight=ft.FontWeight.W_600),
+            content=ft.Container(
+                width=760,
+                content=ft.Column(
+                    [
+                        self._settings_block(
+                            "日常使用",
+                            ft.Column(
+                                [ft.Text(line, size=12, color=ft.Colors.GREY_800) for line in ocr_lines],
+                                spacing=6,
+                            ),
+                        ),
+                        self._settings_block(
+                            "OCR 说明",
+                            ft.Column(
+                                [
+                                    ft.Text(ocr_status, size=12, color=ft.Colors.GREY_800),
+                                    ft.Text("如果需要阿里云文字识别 OCR 密钥，可以联系软件作者，或者自己去阿里云申请。", size=12, color=ft.Colors.GREY_800),
+                                    ft.Text("系统环境变量需要配置：ALIBABA_CLOUD_ACCESS_KEY_ID 和 ALIBABA_CLOUD_ACCESS_KEY_SECRET。", size=12, color=ft.Colors.GREY_800),
+                                    ft.Text("off：不用 OCR。auto：解析失败或金额不闭合时补救。always：没有 XML 匹配的 PDF 都走 OCR。", size=12, color=ft.Colors.GREY_800),
+                                ],
+                                spacing=6,
+                            ),
+                        ),
+                    ],
+                    spacing=12,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+            ),
+            actions=[ft.TextButton(content="关闭", on_click=lambda _: self.page.pop_dialog())],
         )
         self.page.show_dialog(dialog)
 
@@ -832,8 +921,8 @@ class InvoiceApp:
         self.settings_template_name.value = scheme["name"]
         self.settings_reimburse_tpl_field.value = scheme.get("reimburse_template", "")
         self.settings_acceptance_tpl_field.value = scheme.get("acceptance_template", "")
-        self.settings_reimburse_name_field.value = scheme.get("reimburse_name", "第四组报账说明.docx")
-        self.settings_acceptance_name_field.value = scheme.get("acceptance_name", "第四组验收单.docx")
+        self.settings_reimburse_name_field.value = scheme.get("reimburse_name", DEFAULT_REIMBURSE_OUTPUT_NAME)
+        self.settings_acceptance_name_field.value = scheme.get("acceptance_name", DEFAULT_ACCEPTANCE_OUTPUT_NAME)
         reimburse = Path(scheme.get("reimburse_template", "")).name or "未设置"
         acceptance = Path(scheme.get("acceptance_template", "")).name or "未设置"
         self.settings_template_summary.value = (
@@ -883,8 +972,8 @@ class InvoiceApp:
             "name": name,
             "reimburse_template": self.settings_reimburse_tpl_field.value or "",
             "acceptance_template": self.settings_acceptance_tpl_field.value or "",
-            "reimburse_name": self.settings_reimburse_name_field.value or "第四组报账说明.docx",
-            "acceptance_name": self.settings_acceptance_name_field.value or "第四组验收单.docx",
+            "reimburse_name": self.settings_reimburse_name_field.value or DEFAULT_REIMBURSE_OUTPUT_NAME,
+            "acceptance_name": self.settings_acceptance_name_field.value or DEFAULT_ACCEPTANCE_OUTPUT_NAME,
         }
         self._upsert_template_scheme(scheme)
         self.selected_template_scheme = name
@@ -905,8 +994,8 @@ class InvoiceApp:
             "name": name,
             "reimburse_template": self.settings_reimburse_tpl_field.value or "",
             "acceptance_template": self.settings_acceptance_tpl_field.value or "",
-            "reimburse_name": self.settings_reimburse_name_field.value or "第四组报账说明.docx",
-            "acceptance_name": self.settings_acceptance_name_field.value or "第四组验收单.docx",
+            "reimburse_name": self.settings_reimburse_name_field.value or DEFAULT_REIMBURSE_OUTPUT_NAME,
+            "acceptance_name": self.settings_acceptance_name_field.value or DEFAULT_ACCEPTANCE_OUTPUT_NAME,
         }
         self._upsert_template_scheme(scheme)
         self.selected_template_scheme = name

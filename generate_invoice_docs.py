@@ -38,8 +38,8 @@ from pypdf import PdfReader
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INVOICE_DIR = ROOT / "发票"
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-DEFAULT_REIMBURSE_TEMPLATE = ROOT / "第三组报账说明.docx"
-DEFAULT_ACCEPTANCE_TEMPLATE = ROOT / "第三组验收单.docx"
+DEFAULT_REIMBURSE_TEMPLATE = ROOT / "默认报账说明模板.docx"
+DEFAULT_ACCEPTANCE_TEMPLATE = ROOT / "默认验收单模板.docx"
 
 MONEY = Decimal("0.01")
 
@@ -1001,8 +1001,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--document-date", default="2026年5月13日", help="写入 Word 的日期文本")
     parser.add_argument("--expected-buyer-name", default="", help="期望购买方抬头；为空时只检查本批是否一致")
     parser.add_argument("--expected-buyer-tax-id", default="", help="兼容旧命令保留，一般不需要设置")
-    parser.add_argument("--reimburse-name", default="第四组报账说明.docx", help="报账说明输出文件名")
-    parser.add_argument("--acceptance-name", default="第四组验收单.docx", help="验收单输出文件名")
+    parser.add_argument("--reimburse-name", default="报账说明.docx", help="报账说明输出文件名")
+    parser.add_argument("--acceptance-name", default="验收单.docx", help="验收单输出文件名")
     return parser.parse_args(argv)
 
 
