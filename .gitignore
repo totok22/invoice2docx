@@ -19,3 +19,6 @@ output/
 # 个人文件
 第三组报账说明.docx
 第三组验收单.docx
+
+# 发票原始数据
+invoices/
