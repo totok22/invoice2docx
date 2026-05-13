@@ -613,10 +613,24 @@ def clear_data_rows(table, keep_rows: int = 1):
 
 
 def set_cell(cell, text: str):
-    cell.text = str(text)
-    for paragraph in cell.paragraphs:
-        for run in paragraph.runs:
-            run.font.name = run.font.name
+    lines = str(text).splitlines() or [""]
+    for idx, paragraph in enumerate(cell.paragraphs):
+        set_paragraph_text(paragraph, lines[idx] if idx < len(lines) else "")
+    if len(lines) > len(cell.paragraphs):
+        paragraph = cell.paragraphs[-1]
+        for line in lines[len(cell.paragraphs):]:
+            paragraph.add_run().add_break()
+            paragraph.add_run(line)
+
+
+def set_paragraph_text(paragraph, text: str):
+    text = str(text)
+    if not paragraph.runs:
+        paragraph.add_run(text)
+        return
+    paragraph.runs[0].text = text
+    for run in paragraph.runs[1:]:
+        run.text = ""
 
 
 def ensure_template_shape(template: Path, min_table_columns: int, label: str):
@@ -633,11 +647,11 @@ def update_reimburse_doc(invoices: list[Invoice], total: Decimal, out_path: Path
     ensure_template_shape(template, 3, "报账说明")
     shutil.copyfile(template, out_path)
     doc = Document(out_path)
-    doc.paragraphs[0].text = (
+    set_paragraph_text(doc.paragraphs[0], (
         f"机械与车辆学院申请支出{fmt_money(total)} 元。方程式车队比赛物资采买。"
         f"人民币{fmt_money(total)}元需打款至学生账户如下："
-    )
-    doc.paragraphs[-1].text = document_date
+    ))
+    set_paragraph_text(doc.paragraphs[-1], document_date)
     table = doc.tables[0]
     template_row = deepcopy(table.rows[1])
     clear_data_rows(table, 1)
@@ -661,7 +675,7 @@ def update_acceptance_doc(items: list[Item], out_path: Path, template: Path, doc
     ensure_template_shape(template, 9, "验收单")
     shutil.copyfile(template, out_path)
     doc = Document(out_path)
-    doc.paragraphs[1].text = f"单位   机械与车辆学院                                                                                       {document_date}"
+    set_paragraph_text(doc.paragraphs[1], f"单位   机械与车辆学院                                                                                       {document_date}")
     table = doc.tables[0]
     template_row = deepcopy(table.rows[1])
     attachment_text = table.rows[1].cells[-1].text

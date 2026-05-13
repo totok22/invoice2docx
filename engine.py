@@ -597,10 +597,24 @@ def clear_data_rows(table, keep_rows: int = 1):
 
 
 def set_cell(cell, text: str):
-    cell.text = str(text)
-    for paragraph in cell.paragraphs:
-        for run in paragraph.runs:
-            run.font.name = run.font.name
+    lines = str(text).splitlines() or [""]
+    for idx, paragraph in enumerate(cell.paragraphs):
+        set_paragraph_text(paragraph, lines[idx] if idx < len(lines) else "")
+    if len(lines) > len(cell.paragraphs):
+        paragraph = cell.paragraphs[-1]
+        for line in lines[len(cell.paragraphs):]:
+            paragraph.add_run().add_break()
+            paragraph.add_run(line)
+
+
+def set_paragraph_text(paragraph, text: str):
+    text = str(text)
+    if not paragraph.runs:
+        paragraph.add_run(text)
+        return
+    paragraph.runs[0].text = text
+    for run in paragraph.runs[1:]:
+        run.text = ""
 
 
 def ensure_template_shape(template: Path, min_table_columns: int, label: str):
@@ -613,15 +627,35 @@ def ensure_template_shape(template: Path, min_table_columns: int, label: str):
         raise RuntimeError(f"{label}模板表格列数不足：{template}")
 
 
-def update_reimburse_doc(invoices: list[Invoice], total: Decimal, out_path: Path, template: Path, document_date: str):
+def update_reimburse_doc(
+    invoices: list[Invoice],
+    total: Decimal,
+    out_path: Path,
+    template: Path,
+    document_date: str,
+    person_profile: dict[str, str] | None = None,
+):
     ensure_template_shape(template, 3, "报账说明")
     shutil.copyfile(template, out_path)
     doc = Document(out_path)
-    doc.paragraphs[0].text = (
+    set_paragraph_text(doc.paragraphs[0], (
         f"机械与车辆学院申请支出{fmt_money(total)} 元。方程式车队比赛物资采买。"
         f"人民币{fmt_money(total)}元需打款至学生账户如下："
-    )
-    doc.paragraphs[-1].text = document_date
+    ))
+    profile = person_profile or {}
+    if len(doc.paragraphs) > 2:
+        set_paragraph_text(
+            doc.paragraphs[1],
+            f"学号：{profile.get('student_id', '')}   "
+            f"姓名：{profile.get('person_name', '')}   "
+            f"联系方式：{profile.get('contact', '')}",
+        )
+        set_paragraph_text(
+            doc.paragraphs[2],
+            f"开户行：{profile.get('bank_name', '')}       "
+            f"卡号：{profile.get('bank_card', '')}",
+        )
+    set_paragraph_text(doc.paragraphs[-1], document_date)
     table = doc.tables[0]
     template_row = deepcopy(table.rows[1])
     clear_data_rows(table, 1)
@@ -641,7 +675,7 @@ def update_acceptance_doc(items: list[Item], out_path: Path, template: Path, doc
     ensure_template_shape(template, 9, "验收单")
     shutil.copyfile(template, out_path)
     doc = Document(out_path)
-    doc.paragraphs[1].text = f"单位   机械与车辆学院                                                                                       {document_date}"
+    set_paragraph_text(doc.paragraphs[1], f"单位   机械与车辆学院                                                                                       {document_date}")
     table = doc.tables[0]
     template_row = deepcopy(table.rows[1])
     attachment_text = table.rows[1].cells[-1].text
@@ -926,6 +960,7 @@ class RunConfig:
     reimburse_name: str = "报账说明.docx"
     acceptance_name: str = "验收单.docx"
     allow_risky_generate: bool = False
+    person_profile: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -987,7 +1022,7 @@ def run_pipeline(config: RunConfig, progress: ProgressCallback | None = None) ->
 
     reimburse_out = run_output_dir / config.reimburse_name
     acceptance_out = run_output_dir / config.acceptance_name
-    update_reimburse_doc(invoices, total, reimburse_out, config.reimburse_template, config.document_date)
+    update_reimburse_doc(invoices, total, reimburse_out, config.reimburse_template, config.document_date, config.person_profile)
     update_acceptance_doc(items, acceptance_out, config.acceptance_template, config.document_date, config.storage_location)
 
     if progress:

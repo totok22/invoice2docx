@@ -714,6 +714,7 @@ class InvoiceApp:
         self.results_column.visible = False
         self.page.update()
 
+        profile = self._get_person_profile(self.selected_person_profile) or {}
         config = RunConfig(
             invoice_dir=Path(self.invoice_dir_field.value or "."),
             reimburse_template=Path(self.reimburse_tpl_field.value),
@@ -728,6 +729,13 @@ class InvoiceApp:
             reimburse_name=self.reimburse_name_field.value or "报账说明.docx",
             acceptance_name=self.acceptance_name_field.value or "验收单.docx",
             allow_risky_generate=self.risky_checkbox.value,
+            person_profile={
+                "student_id": profile.get("student_id", ""),
+                "person_name": profile.get("person_name", ""),
+                "contact": profile.get("contact", ""),
+                "bank_name": profile.get("bank_name", ""),
+                "bank_card": profile.get("bank_card", ""),
+            },
         )
 
         def worker():
